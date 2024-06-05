@@ -104,7 +104,7 @@ func (s *App) InitDatabase() error {
 
 func (s *App) InitApi() error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("v1/message", s.messageHandler)
+	mux.HandleFunc("/message", s.messageHandler)
 	mux.HandleFunc("/ping", s.onPing)
 
 	var server = &http.Server{
