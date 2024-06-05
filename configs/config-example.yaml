@@ -1,0 +1,18 @@
+telegram:
+  token: "your_telegram_bot_token"
+  updaterKind: "webhook"  # Can be "webhook", "webhook_with_custom_cert", or "long_polling"
+  webhook_url: "https://yourdomain.com"
+
+db:
+  host: "localhost"
+  port: 5432
+  database_name: "your_database"
+  username: "your_username"
+  password: "your_password"
+
+server:
+  secret: "your_secret_key"
+  address: ":8082"
+
+
+env: "dev"  # Can be "stable" or "testing"
