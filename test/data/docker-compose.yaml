@@ -1,0 +1,34 @@
+version: '3.4'
+
+services:
+  mysql:
+    image: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: sbot_db
+      MYSQL_USER: user_app
+      MYSQL_PASSWORD: password
+      MYSQL_HOST: mysql
+    ports:
+        - "3333:3306"
+    networks:
+      - gateway
+    volumes:
+      - ./db-data/:/var/lib/mysql
+      - ./migration:/docker-entrypoint-initdb.d
+
+  phpmyadmin:
+    image: phpmyadmin
+    restart: always
+    ports:
+      - "8887:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PASSWORD:  password
+      PMA_USER: user_app
+    networks:
+      - gateway
+
+networks:
+  gateway: {}

@@ -27,6 +27,14 @@ type App struct {
 	stopFunc  []func(ctx context.Context)
 }
 
+func New(cfg *config.Config) *App {
+	return &App{
+		config:  cfg,
+		ErrChan: make(chan error, 1),
+	}
+
+}
+
 func (s *App) Start() {
 	for _, init := range []func() error{
 		s.InitDatabase,
@@ -45,13 +53,34 @@ func (s *App) Start() {
 	}
 }
 
-func New(cfg *config.Config) *App {
-	return &App{
-		config:  cfg,
-		ErrChan: make(chan error, 1),
+func (s *App) Shutdown(ctx context.Context) {
+	doneCh := make(chan struct{}, 1)
+	defer func() {
+		close(doneCh)
+	}()
+	go func() {
+		wg := sync.WaitGroup{}
+		for _, delegate := range s.stopFunc {
+			wg.Add(1)
+			handler := delegate
+			go func() {
+				handler(ctx)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+		doneCh <- struct{}{}
+	}()
+	select {
+	case <-doneCh:
+		logger.Info("Good bye!")
+	case <-ctx.Done():
+		logger.Fatal("Shutdown sequence timeout")
 	}
-
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
 func (s *App) InitDatabase() error {
 	store, err := mysql.New(s.config)
 	if err != nil {
@@ -72,8 +101,6 @@ func (s *App) InitDatabase() error {
 
 	return err
 }
-
-///////////////////////////////////////////////////////////////////////////////////
 
 func (s *App) InitApi() error {
 	mux := http.NewServeMux()
@@ -115,44 +142,6 @@ func (s *App) onPing(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 }
-
-func (s *App) Shutdown(ctx context.Context) {
-	doneCh := make(chan struct{}, 1)
-	defer func() {
-		close(doneCh)
-	}()
-	go func() {
-		wg := sync.WaitGroup{}
-		for _, delegate := range s.stopFunc {
-			wg.Add(1)
-			handler := delegate
-			go func() {
-				handler(ctx)
-				wg.Done()
-			}()
-		}
-		wg.Wait()
-		doneCh <- struct{}{}
-	}()
-	select {
-	case <-doneCh:
-		logger.Info("Good bye!")
-	case <-ctx.Done():
-		logger.Fatal("Shutdown sequence timeout")
-	}
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-func (s *App) addStartDelegate(delegate func()) {
-	s.startFunc = append(s.startFunc, delegate)
-}
-
-func (s *App) addStopDelegate(delegate func(ctx context.Context)) {
-	s.stopFunc = append(s.stopFunc, delegate)
-}
-
-// //////////////////////////////////////////////////////////////////////////////
 
 type Message struct {
 	Phone string `json:"phone"`
@@ -217,7 +206,6 @@ func (s *App) messageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *App) InitBot() (err error) {
-
 	ctx := context.Background()
 
 	switch s.config.Telegram.UpdaterKind {
@@ -347,3 +335,15 @@ func initLongPoller(s *App) (*tb.Bot, error) {
 		Verbose:     s.config.EnvType == config.Dev,
 	})
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func (s *App) addStartDelegate(delegate func()) {
+	s.startFunc = append(s.startFunc, delegate)
+}
+
+func (s *App) addStopDelegate(delegate func(ctx context.Context)) {
+	s.stopFunc = append(s.stopFunc, delegate)
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
